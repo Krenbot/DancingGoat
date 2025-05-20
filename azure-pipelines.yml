@@ -102,14 +102,6 @@ stages:
           #       sonar.cs.opencover.reportsPaths=$(Agent.TempDirectory)/**/coverage.opencover.xml
 
           - task: DotNetCoreCLI@2
-            inputs:
-              command: 'restore'
-              projects: '**/*.csproj'
-              feedsToUse: 'select'
-              vstsFeed: 'PortalONE-Packages'
-              includeNuGetOrg: true
-
-          - task: DotNetCoreCLI@2
             displayName: Build
             inputs:
               command: 'build'
