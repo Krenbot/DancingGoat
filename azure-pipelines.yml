@@ -17,7 +17,6 @@ variables:
   - group: vg-por-release-version
   - group: vg-sonarqube-general
   - group: vg-pipeline-general
-  - group: vg-por-api-general
 
   - name: System.Debug
     value: true # enable system.debug
@@ -83,12 +82,6 @@ stages:
                 }
             displayName: Set Release Version
 
-          # Authenticate against NuGet before restore
-          - task: NuGetAuthenticate@1
-            displayName: 'Authenticate against NuGet'
-            env:
-              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-
           # Use .NET SDK
           - task: UseDotNet@2
             displayName: 'Install .NET Core SDK'
@@ -123,14 +116,6 @@ stages:
                 $(System.DefaultWorkingDirectory)/$(projectName)/*.csproj
               arguments: --output $(System.DefaultWorkingDirectory)/publish_output --configuration $(buildConfiguration)
 
-          - task: DotNetCoreCLI@2
-            displayName: Test
-            inputs:
-              command: 'test'
-              projects: |
-                $(System.DefaultWorkingDirectory)/$(testProjectName)/*.csproj
-              arguments: --configuration $(buildConfiguration) --collect "XPlat Code Coverage;Format=opencover"
-
           # - task: SonarQubeAnalyze@7
           #   condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
           #   inputs:
@@ -160,121 +145,11 @@ stages:
       - Validation
     condition: and(succeeded('BuildAndTest'), eq(${{ parameters.HotFix }}, false))
     variables:
-      - group: vg-azure-functions-dev
-      - group: vg-por-keyvault-dev
       - group: vg-por-pipeline-dev
       - group: vg-por-web-sample-project-intranet-cms-dev
     jobs:
       - deployment: DeployFunctionApp
         displayName: 'Deploy Function App'
         environment: 'POR_DEV'
-        condition: eq('${{ parameters.DeployOnlyAvailabilityTest }}', 'false')
         pool:
           vmImage: $(vmImageName)
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                - template: '.pipeline/api.deploy.yml'
-                  parameters:
-                    subscription: '$(azureSubscription-dev)'
-                    appSettingsJson: >
-                      [
-                        {"name":"AzureKeyVaultUrl","value":"$(AzureKeyVaultUrl)"},
-                        {"name":"FUNCTIONS_EXTENSION_VERSION","value":"$(DOTNET_FUNCTIONS_ISOLATED_EXTENSION_VERSION)"},
-                        {"name":"FUNCTIONS_WORKER_RUNTIME","value":"$(DOTNET_FUNCTIONS_ISOLATED_WORKER_RUNTIME)"},
-                        {"name":"WEBSITE_CONTENTSHARE","value": "$(functionAppName)"},
-                        {"name":"ASPNETCORE_ENVIRONMENT","value":"Production"},
-                        {"name":"ApplicationName","value":"$(projectName)"},
-                        {"name":"SqlDBConnectionString","value":"$(SqlDBConnectionString)"},
-                        {"name":"BlobStorageConnectionString","value":"$(blobStorageConnectionString)"},
-                        {"name":"ErrorCode-NoSqlDBConnectionString-readOnly","value":"$(errorCode-NoSqlDBConnectionString-readOnly)"},
-                        {"name":"ApimUrl","value":"$(ApimUrl)"},
-                        {"name":"ContainerName","value":"$(containerName)"},
-                        {"name":"LoanOfficersImageFolder","value":"$(loanOfficersImageFolder)"},
-                        {"name":"BranchImagesUrl","value":"$(branchImagesUrl)"},
-                        {"name":"LoanOfficerImagesUrl","value":"$(loanOfficerImagesUrl)"},
-                        {"name":"GetAllOrganizationsUrl","value":"partner-los-platform/settings/organizations"},
-                        {"name":"GetListOfUsersByOrgUrl","value":"partner-los-platform/settings/organizations/{organizationId}/users"},
-                        {"name":"GetUserUrl","value":"por-graph-query/GetUser"},
-                        {"name":"GetUserByUpnUrl","value":"por-graph-query/GetUserByUpn"},
-                        {"name":"GetUserByNameUrl","value":"por-graph-query/GetUserByName"},
-                        {"name":"GetUserPhotoUrl","value":"por-graph-query/GetUserPhoto"},                       
-                        {"name":"PartnerCmsUrl","value":"partner-cms-services/GetUser"},
-                        {"name":"MaxUpsertOrganizationBatchItems","value":"3"},
-                        {"name":"MaxOrganizationBatchItems","value":"3"},
-                        {"name":"MaxUserPhotosBatchItems","value":"3"},
-                        {"name":"MaxUserIdsBatchItems","value":"3"},
-                        {"name":"MaxPartnerBatchItems","value":"3"},
-                        {"name":"ConcurrencyEnabled", "value":"true"},
-                        {"name":"ApplicationIdForErrorCode","value":"$(applicationIdForErrorCode)"},
-                        {"name":"WEBSITE_ENABLE_SYNC_UPDATE_SITE","value": "true"},
-                        {"name":"WEBSITE_RUN_FROM_PACKAGE","value": "1"},
-                        {"name":"WEBSITE_USE_PLACEHOLDER_DOTNETISOLATED","value": "1"}    
-                      ]
-                    apiName: '$(functionAppName)'
-                    apiResourceGroup: '$(apiResourceGroup)'
-                    appins: '$(appins)'
-                    appinsResourceGroup: '$(performanceMonitorResourceGroup)'
-                    storageAccountName: '$(storageAccountName)'
-                    storageAccountResourceGroup: '$(storageAccountResourceGroup)'
-
-      - job: ConfigureKeyVault
-        displayName: 'Configure Key Vault'
-        dependsOn:
-          - DeployFunctionApp
-        condition: and(succeeded(), eq('${{ parameters.DeployOnlyAvailabilityTest }}', 'false'))
-        steps:
-          - template: '.pipeline/keyvault.configure.yml'
-            parameters:
-              subscription: '$(azureSubscription-dev)'
-              apiName: '$(functionAppName)'
-              apiResourceGroup: '$(apiResourceGroup)'
-              keyVaultName: '$(keyVaultName)'
-
-      - job: DeployApim
-        displayName: 'Deploy To APIM'
-        dependsOn:
-          - DeployFunctionApp
-          - ConfigureKeyVault
-        condition: and(succeeded(), eq('${{ parameters.DeployOnlyAvailabilityTest }}', 'false'))
-        steps:
-          - template: '.pipeline/apim.deploy.yml'
-            parameters:
-              subscription: '$(azureSubscription-dev)'
-              apimSubscription: '$(azureApimSubscription-dev)'
-              apiName: '$(functionAppName)'
-              apiResourceGroup: '$(apiResourceGroup)'
-              apiUrl: 'https://$(functionAppName).azurewebsites.net/api'
-              openApiUrl: 'https://$(functionAppName).azurewebsites.net/api/swagger.json'
-              apimServiceName: '$(apimName)'
-              apimResourceGroup: '$(apiManagementResourceGroup)'
-              apimApiId: '$(apimApiId)'
-              apimApiPath: '$(apimApiPath)'
-              apimDisplayName: '$(apimDisplayName)'
-              apimProduct: '$(apimDefaultProductName)'
-
-      - job: DeployAvailabilityTest
-        displayName: 'Add Health Check Endpoint To Availability Test'
-        dependsOn:
-          - DeployFunctionApp
-          - ConfigureKeyVault
-          - DeployApim
-        condition: or(succeeded(), eq('${{ parameters.DeployOnlyAvailabilityTest }}', 'true'))
-        steps:
-          - template: '.pipeline/availabilitytest.deploy.yml'
-            parameters:
-              sub: '$(azureSubscription-dev)'
-              workingDirectory: '$(System.DefaultWorkingDirectory)/'
-              webtestName: '$(webtestName)'
-              ocp_apim_subscription_key: '$(ocp-apim-subscription-key)'
-              X_Auth: '$(X-Auth)'
-              HealthCheckUrl: '$(HealthCheckUrl)'
-              isAvailabilityTestEnabled: $(isAvailabilityTestEnabled)
-              isAlertEnabled: $(isAlertEnabled)
-              actiongroupName: $(actiongroupName)
-              metricAlertsName: '$(metricAlertsName)'
-              actiongroupResouceGroup: '$(actiongroupResouceGroup)'
-              appInsightsName: '$(appins)'
-              appInsightsResourceGroup: '$(appInsightsResourceGroup)'
-              env: 'dev'
