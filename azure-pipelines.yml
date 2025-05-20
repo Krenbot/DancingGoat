@@ -107,7 +107,7 @@ stages:
             inputs:
               command: 'build'
               projects: |
-                $(System.DefaultWorkingDirectory)/$(projectName)/*.csproj
+                $(System.DefaultWorkingDirectory)/*.csproj
               arguments: --output $(System.DefaultWorkingDirectory)/publish_output --configuration $(buildConfiguration)
 
           # - task: SonarQubeAnalyze@7
