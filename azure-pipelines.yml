@@ -18,6 +18,7 @@ variables:
   - group: vg-sonarqube-general
   - group: vg-pipeline-general
   - group: vg-por-web-general
+  - group: vg-por-web-sample-project-intranet-cms-general
 
   - name: System.Debug
     value: true # enable system.debug
