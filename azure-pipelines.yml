@@ -147,3 +147,26 @@ stages:
         environment: 'POR_DEV'
         pool:
           vmImage: $(vmImageName)
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - template: '.pipeline/api.deploy.yml'
+                  parameters:
+                    subscription: '$(azureSubscription-dev)'
+                    appSettingsJson: >
+                      [
+                        {"name":"FUNCTIONS_EXTENSION_VERSION","value":"$(DOTNET_FUNCTIONS_ISOLATED_EXTENSION_VERSION)"},
+                        {"name":"FUNCTIONS_WORKER_RUNTIME","value":"$(DOTNET_FUNCTIONS_ISOLATED_WORKER_RUNTIME)"},
+                        {"name":"WEBSITE_CONTENTSHARE","value": "$(functionAppName)"},
+                        {"name":"ASPNETCORE_ENVIRONMENT","value":"Production"},
+                        {"name":"WEBSITE_ENABLE_SYNC_UPDATE_SITE","value": "true"},
+                        {"name":"WEBSITE_RUN_FROM_PACKAGE","value": "1"},
+                        {"name":"WEBSITE_USE_PLACEHOLDER_DOTNETISOLATED","value": "1"}    
+                      ]
+                    apiName: '$(functionAppName)'
+                    apiResourceGroup: '$(apiResourceGroup)'
+                    appins: '$(appins)'
+                    appinsResourceGroup: '$(performanceMonitorResourceGroup)'
+                    storageAccountName: '$(storageAccountName)'
+                    storageAccountResourceGroup: '$(storageAccountResourceGroup)'          
