@@ -96,16 +96,16 @@ stages:
               version: '$(DOTNET_VERSION)'
               packageType: sdk
 
-          - task: SonarQubePrepare@7
-            condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
-            inputs:
-              SonarQube: '$(SONARQUBE_SERVICE_CONNECTION)'
-              scannerMode: '$(SONARQUBE_API_SCANNER_MODE)'
-              msBuildVersion: '$(SONARQUBE_MS_BUILD_VERSION)'
-              projectKey: '$(sonarQubeProjectKey)'
-              projectName: '$(projectName)'
-              extraProperties: |
-                sonar.cs.opencover.reportsPaths=$(Agent.TempDirectory)/**/coverage.opencover.xml
+          # - task: SonarQubePrepare@7
+          #   condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
+          #   inputs:
+          #     SonarQube: '$(SONARQUBE_SERVICE_CONNECTION)'
+          #     scannerMode: '$(SONARQUBE_API_SCANNER_MODE)'
+          #     msBuildVersion: '$(SONARQUBE_MS_BUILD_VERSION)'
+          #     projectKey: '$(sonarQubeProjectKey)'
+          #     projectName: '$(projectName)'
+          #     extraProperties: |
+          #       sonar.cs.opencover.reportsPaths=$(Agent.TempDirectory)/**/coverage.opencover.xml
 
           - task: DotNetCoreCLI@2
             inputs:
@@ -131,15 +131,15 @@ stages:
                 $(System.DefaultWorkingDirectory)/$(testProjectName)/*.csproj
               arguments: --configuration $(buildConfiguration) --collect "XPlat Code Coverage;Format=opencover"
 
-          - task: SonarQubeAnalyze@7
-            condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
-            inputs:
-              jdkversion: 'JAVA_HOME_17_X64'
+          # - task: SonarQubeAnalyze@7
+          #   condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
+          #   inputs:
+          #     jdkversion: 'JAVA_HOME_17_X64'
 
-          - task: SonarQubePublish@7
-            condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
-            inputs:
-              pollingTimeoutSec: '300'
+          # - task: SonarQubePublish@7
+          #   condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
+          #   inputs:
+          #     pollingTimeoutSec: '300'
 
           - task: ArchiveFiles@2
             displayName: 'Archive files'
