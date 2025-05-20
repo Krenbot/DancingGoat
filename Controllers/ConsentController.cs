@@ -2,9 +2,7 @@
 using CMS.DataEngine;
 using CMS.DataProtection;
 using CMS.Helpers;
-
 using DancingGoat.Helpers.Generator;
-
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -16,14 +14,16 @@ namespace DancingGoat.Controllers
         private readonly IConsentAgreementService consentAgreementService;
         private readonly IInfoProvider<ConsentInfo> consentInfoProvider;
 
-
-        public ConsentController(ICurrentCookieLevelProvider cookieLevelProvider, IConsentAgreementService consentAgreementService, IInfoProvider<ConsentInfo> consentInfoProvider)
+        public ConsentController(
+            ICurrentCookieLevelProvider cookieLevelProvider,
+            IConsentAgreementService consentAgreementService,
+            IInfoProvider<ConsentInfo> consentInfoProvider
+        )
         {
             this.cookieLevelProvider = cookieLevelProvider;
             this.consentAgreementService = consentAgreementService;
             this.consentInfoProvider = consentInfoProvider;
         }
-
 
         // POST: Consent/Agree
         [HttpPost]

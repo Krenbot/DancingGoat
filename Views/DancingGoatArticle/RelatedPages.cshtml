@@ -13,11 +13,12 @@
                         @if (!string.IsNullOrEmpty(relatedPage.TeaserUrl))
                         {
                             <a href="@relatedPage.Url">
-                                <img src="@relatedPage.TeaserUrl" alt="@relatedPage.Title" title="@relatedPage.Title" class="article-tile-image" loading="lazy" />
+                                <img src="@relatedPage.TeaserUrl" alt="@relatedPage.Title" title="@relatedPage.Title"
+                                    class="article-tile-image" loading="lazy" />
                             </a>
                         }
                         <div class="article-tile-info">
-                            @if(relatedPage.PublicationDate.HasValue)
+                            @if (relatedPage.PublicationDate.HasValue)
                             {
                                 <div class="article-tile-date">
                                     @relatedPage.PublicationDate?.ToString("m")
