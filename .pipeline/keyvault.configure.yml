@@ -1,0 +1,22 @@
+parameters:
+  - name: subscription
+    type: string
+  - name: apiName
+    type: string
+  - name: apiResourceGroup
+    type: string
+  - name: keyVaultName
+    type: string
+
+steps:
+  - task: AzureCLI@2
+    displayName: 'Set Access Policy to Key Vault'
+    inputs:
+      azureSubscription: '${{parameters.subscription}}'
+      scriptType: 'bash'
+      scriptLocation: 'inlineScript'
+      inlineScript: |
+        principalId=$(az functionapp identity show --name ${{parameters.apiName}} --resource-group ${{parameters.apiResourceGroup}} --query principalId --output tsv)
+
+        echo "##vso[task.setvariable variable=principalId]$principalId"
+        az role assignment create --role "Key Vault Secrets User" --subscription ${{parameters.subscription}} --assignee-object-id $principalId --assignee-principal-type ServicePrincipal --scope $(az keyvault show --name ${{parameters.keyVaultName}} --subscription ${{parameters.subscription}} --query id -o tsv)

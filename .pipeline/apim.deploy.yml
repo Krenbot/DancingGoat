@@ -1,0 +1,92 @@
+parameters:
+  - name: subscription
+    type: string
+  - name: apimSubscription
+    type: string
+  - name: apiName
+    type: string
+  - name: apiResourceGroup
+    type: string
+  - name: apiUrl
+    type: string
+  - name: openApiUrl
+    type: string
+  - name: apimResourceGroup
+    type: string
+  - name: apimServiceName
+    type: string
+  - name: apimApiId
+    type: string
+  - name: apimApiPath
+    type: string
+  - name: apimDisplayName
+    type: string
+  - name: apimProduct
+    type: string
+
+steps:
+  - task: AzureCLI@2
+    displayName: 'Remove Function App Access Restriction to APIM'
+    inputs:
+      azureSubscription: '${{parameters.subscription}}'
+      scriptType: 'bash'
+      scriptLocation: 'inlineScript'
+      inlineScript: |
+        # Suppress exception that can be raised if the access-restriction rule does not exist
+        set +e
+        az functionapp config access-restriction remove --name ${{parameters.apiName}} --subscription ${{parameters.subscription}}  --resource-group ${{parameters.apiResourceGroup}} --rule-name "ApimOnly"
+        set -e
+        # Revert back to default behavior
+
+  - task: AzureCLI@2
+    displayName: 'Import API into APIM'
+    inputs:
+      azureSubscription: '${{parameters.apimSubscription}}'
+      scriptType: 'bash'
+      scriptLocation: 'inlineScript'
+      inlineScript: |
+        az apim api import \
+          --resource-group ${{parameters.apimResourceGroup}} \
+          --service-name ${{parameters.apimServiceName}} \
+          --api-id ${{parameters.apimApiId}} \
+          --path ${{parameters.apimApiPath}} \
+          --api-type http \
+          --protocols https \
+          --service-url ${{parameters.apiUrl}} \
+          --subscription-required true \
+          --display-name "${{parameters.apimDisplayName}}" \
+          --specification-format OpenApi \
+          --specification-url ${{parameters.openApiUrl}}
+
+  - task: AzureCLI@2
+    displayName: 'Add API to APIM Product'
+    inputs:
+      azureSubscription: '${{parameters.apimSubscription}}'
+      scriptType: 'bash'
+      scriptLocation: 'inlineScript'
+      inlineScript: |
+        az apim product api add \
+          --resource-group ${{parameters.apimResourceGroup}} \
+          --service-name ${{parameters.apimServiceName}} \
+          --api-id ${{parameters.apimApiId}} \
+          --product-id ${{parameters.apimProduct}}
+
+  - task: AzureCLI@2
+    displayName: 'Set Apim IP Address Variable'
+    inputs:
+      azureSubscription: ${{ parameters.apimSubscription }}
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        apimIPAddress=$(az apim show --name ${{parameters.apimServiceName}} --resource-group ${{parameters.apimResourceGroup}} --query "publicIpAddresses[0]" -o tsv)
+        echo "##vso[task.setvariable variable=apimIPAddress]$apimIPAddress"
+
+  - task: AzureCLI@2
+    displayName: 'Add Function App Access Restriction for APIM'
+    inputs:
+      azureSubscription: '${{parameters.subscription}}'
+      scriptType: 'bash'
+      scriptLocation: 'inlineScript'
+      inlineScript: |
+
+        az functionapp config access-restriction add --name ${{parameters.apiName}} --subscription ${{parameters.subscription}} --resource-group ${{parameters.apiResourceGroup}} --rule-name "ApimOnly" --action "Allow" --ip-address "$(apimIPAddress)/27" --priority 100

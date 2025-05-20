@@ -1,0 +1,75 @@
+parameters:
+  - name: subscription
+    type: string
+  - name: storageAccountName
+    type: string
+  - name: storageAccountResourceGroup
+    type: string
+  - name: apiName
+    type: string
+  - name: apiResourceGroup
+    type: string
+  - name: appins
+    type: string
+  - name: appinsResourceGroup
+    type: string
+  - name: appSettingsJson
+    type: string
+    default: '[{"name":"Setting1","value":"Value1"},{"name":"Setting2","value":"Value2"}]'
+
+steps:
+  - task: DownloadPipelineArtifact@2
+    displayName: 'Download Pipeline Artifact'
+    inputs:
+      targetPath: '$(System.DefaultWorkingDirectory)/src'
+
+  - task: AzureFunctionApp@1
+    displayName: 'Function App Deploy'
+    inputs:
+      azureSubscription: '${{parameters.subscription}}'
+      appType: functionApp
+      appName: '${{parameters.apiName}}'
+      package: '$(Pipeline.Workspace)/drop/$(Build.BuildId).zip'
+
+  - task: AzureCLI@2
+    displayName: 'Create/Update Application Settings'
+    inputs:
+      azureSubscription: ${{ parameters.subscription }}
+      scriptType: 'bash'
+      scriptLocation: 'inlineScript'
+      inlineScript: |
+        # Convert the JSON string to bash array
+        appSettingsJson='${{ parameters.appSettingsJson }}'
+
+        # Set ApplicationInsights Connection String
+        connString1=$(az monitor app-insights component show --app ${{ parameters.appins }} --resource-group ${{ parameters.appinsResourceGroup }} --query connectionString -o tsv)
+        echo "APPINSIGHTS CONNECTION STRING - $connString1"        
+        az functionapp config appsettings set --name ${{ parameters.apiName }} --resource-group ${{ parameters.apiResourceGroup }} --settings APPLICATIONINSIGHTS_CONNECTION_STRING="$connString1"
+
+        # Set AzureWebStorage Connection String        
+        connString2=$(az storage account show-connection-string --name ${{ parameters.storageAccountName }} --resource-group ${{ parameters.storageAccountResourceGroup }} --query connectionString -o tsv)
+        echo "AzureWebJobsStorage CONNECTION STRING - $connString2"        
+        az functionapp config appsettings set --name ${{ parameters.apiName }} --resource-group ${{ parameters.apiResourceGroup }} --settings AzureWebJobsStorage="$connString2"
+
+        # Set WEBSITE_CONTENTAZUREFILECONNECTIONSTRING Connection String        
+        connString3=$(az storage account show-connection-string --name ${{ parameters.storageAccountName }} --resource-group ${{ parameters.storageAccountResourceGroup }} --query connectionString -o tsv)
+        echo "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING CONNECTION STRING - $connString3"        
+        az functionapp config appsettings set --name ${{ parameters.apiName }} --resource-group ${{ parameters.apiResourceGroup }} --settings WEBSITE_CONTENTAZUREFILECONNECTIONSTRING="$connString3" WEBSITE_CONTENTSHARE="${{ parameters.apiName }}"
+
+        # Delay for two second
+        sleep 2
+
+        # Build settings array from parameters
+        echo "$appSettingsJson" | jq -c '.[]' | while IFS= read -r row; do
+          name=$(echo "$row" | jq -r '.name')
+          value=$(echo "$row" | jq -r '.value')
+
+          echo "APPSETTING NAME - $name"
+          echo "APPSETTING VALUE - $value"
+
+          # Apply the settings to the function app
+          az functionapp config appsettings set --name ${{ parameters.apiName }} --resource-group ${{ parameters.apiResourceGroup }} --settings $name="$value"          
+
+          # Delay for one second
+          sleep 1
+        done

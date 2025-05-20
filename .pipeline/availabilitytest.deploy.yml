@@ -1,0 +1,88 @@
+parameters:
+  - name: sub
+    type: string
+  - name: workingDirectory
+    type: string
+  - name: webtestName
+    type: string
+  - name: ocp_apim_subscription_key
+    type: string
+  - name: X_Auth
+    type: string
+  - name: HealthCheckUrl
+    type: string
+  - name: isAvailabilityTestEnabled
+    type: string
+  - name: isAlertEnabled
+    type: string
+  - name: appInsightsName
+    type: string
+  - name: metricAlertsName
+    type: string
+  - name: appInsightsResourceGroup
+    type: string
+  - name: actiongroupResouceGroup
+    type: string
+  - name: actiongroupName
+    type: string
+  - name: env
+    type: string
+
+steps:
+  # --------------------------------------------------------------------------------------------------------------
+  # ------------------------------------------- CHECKOUT REPOSITORY ----------------------------------------------
+  # --------------------------------------------------------------------------------------------------------------
+  - checkout: self # Explicitly checkout your repository
+    persistCredentials: true
+
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: '${{parameters.sub}}'
+      scriptType: 'bash'
+      scriptLocation: 'inlineScript'
+      inlineScript: |
+        SUBSCRIPTION_ID=$(az account show --query id --output tsv)
+        echo "##vso[task.setvariable variable=subscriptionId]$SUBSCRIPTION_ID"
+    displayName: 'Set subscriptionId variable'
+
+  - task: AzureCLI@2
+    displayName: 'Add Health Check API Endpoint for Availability Test Using Azure CLI'
+    inputs:
+      azureSubscription: '${{parameters.sub}}'
+      scriptType: 'bash'
+      scriptLocation: 'inlineScript'
+      inlineScript: |
+        az monitor app-insights web-test create --name ${{ parameters.webtestName }} --resource-group ${{ parameters.appInsightsResourceGroup }} \
+        --enabled ${{ parameters.isAvailabilityTestEnabled }} --defined-web-test-name ${{ parameters.webtestName }} --web-test-kind standard \
+        --locations Id="us-il-ch1-azr" --locations Id="us-va-ash-azr" --locations Id="us-ca-sjc-azr" --locations Id="us-fl-mia-edge" --locations Id="us-tx-sn1-azr" \
+        --http-verb "GET" --ssl-check true --request-url "${{ parameters.HealthCheckUrl }}" --retry-enabled true  --description "Heath Check Availability Test for ${{ parameters.webtestName }}" \
+        --frequency 300 --timeout 30 --ssl-lifetime-check 7 --retry-enabled true --expected-status-code 200 \
+        --headers  key=Ocp-Apim-Subscription-Key value=${{ parameters.ocp_apim_subscription_key }} --headers key=X-Auth value=${{ parameters.X_Auth }} \
+        --tags "hidden-link:/subscriptions/$(subscriptionId)/resourcegroups/${{ parameters.appInsightsResourceGroup }}/providers/microsoft.insights/components/${{ parameters.appInsightsName}}=Resource"
+
+  - task: replacetokens@6
+    displayName: 'Replace tokens in HTML Files'
+    inputs:
+      sources: './.pipeline/alert/*.json'
+      additionalVariables: |
+        isAlertEnabled: "${{ parameters.isAlertEnabled }}"
+        actiongroupName: "${{ parameters.actiongroupName }}"
+        appInsightsResourceGroup: "${{ parameters.appInsightsResourceGroup }}"
+        actiongroupResouceGroup: "${{ parameters.actiongroupResouceGroup }}"
+        webtestName: "${{ parameters.webtestName }}"
+        appInsightsName: "${{ parameters.appInsightsName }}"
+        metricAlertsName: "${{ parameters.metricAlertsName }}"
+
+  - task: AzureCLI@2
+    retryCountOnTaskFailure: 3
+    displayName: 'Deploy Alert BICEP template using Azure CLI'
+    inputs:
+      azureSubscription: ${{ parameters.sub }}
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        sleep 10
+        az deployment group create \
+        --resource-group ${{ parameters.appInsightsResourceGroup }} \
+        --template-file ${{ parameters.workingDirectory }}/.pipeline/alert/template.bicep \
+        --parameters ${{ parameters.workingDirectory }}/.pipeline/alert/${{ parameters.env }}.parameters.json
