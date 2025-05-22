@@ -70,5 +70,5 @@ stages:
                   inputs:
                     azureSubscription: '$(azureSubscription-dev)'
                     appType: 'webApp'
-                    appName: 'DancingGoat'
+                    appName: 'xbyk-web-sample-project-intranet-cms-dev'
                     package: '$(Pipeline.Workspace)/drop/*.zip'
