@@ -6,6 +6,7 @@
 # dotenv files
 .env
 license.txt
+/Old & Outdated
 
 # User-specific files
 *.rsuser

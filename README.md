@@ -11,9 +11,9 @@ to troubleshoot any installation or configuration issues.
 
 ### Content type and reusable field schema code files
 
-[Content type](https://docs.xperience.io/x/gYHWCQ) and [reusable field schema](https://docs.xperience.io/x/D4_OD) code files under 
+[Content type](https://docs.xperience.io/x/gYHWCQ) and [reusable field schema](https://docs.xperience.io/x/D4_OD) code files under
 
-- `./Models/Reusable` 
+- `./Models/Reusable`
 - `./Models/WebPage`
 - `./Models/Schema`
 

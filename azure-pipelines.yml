@@ -1,171 +1,70 @@
-#Pipeline used to build the por-api-organization-cmd deploying to azure function app
-
-parameters:
-  - name: HotFix
-    displayName: 'Hot Fix for UAT and PROD'
-    type: boolean
-    default: false
-  - name: DeployOnlyAvailabilityTest
-    displayName: 'Deploy Only Availability Test Templates'
-    type: boolean
-    default: false
-
 trigger:
-  - main
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: 'windows-latest'
 
 variables:
-  - group: vg-por-release-version
-  - group: vg-sonarqube-general
-  - group: vg-pipeline-general
-  - group: vg-por-web-general
-  - group: vg-por-web-sample-project-intranet-cms-general
-
-  - name: System.Debug
-    value: true # enable system.debug
+  buildConfiguration: 'Release'
 
 stages:
-  - stage: Validation
+  - stage: Build
     jobs:
-      - job: Validate
+      - job: BuildAndPublish
         steps:
-          - task: PowerShell@2
-            inputs:
-              targetType: 'inline'
-              script: |
-                $branchName = '$(Build.SourceBranchName)'
-                $isHotfix = '${{ parameters.HotFix }}'
-                $pattern = '^hotfix\.\d{2}\.V\d{2}-\d{2}-\d{4}$'
-
-                $isHotfixBranchNameCorrect = $branchName -match $pattern
-
-                if (($isHotfix -eq $false) -and ($isHotfixBranchNameCorrect -eq $true)){
-                  Write-Error "Pipeline failed: Hotfix checkbox is disabled, or You are not following hotfix naming convenstion for branch.
-                            Hotfix Branch Naming Convention: Format: hotfix.No.VMM-DD-YYYY, Example: hotfix.01.V02-24-2025, hotfix.02.V02-24-2025"
-                  exit 1  # Explicitly fail the task
-                }
-                elseif(($isHotfix -eq $true) -and ($isHotfixBranchNameCorrect -eq $false)){
-                  Write-Error "Pipeline failed: Hotfix checkbix is enabled, or You are not following hotfix naming convenstion for branch.
-                            Hotfix Branch Naming Convention: Format: hotfix.No.VMM-DD-YYYY, Example: hotfix.01.V02-24-2025, hotfix.02.V02-24-2025"
-                  exit 1  # Explicitly fail the task
-                } 
-                else{
-                  Write-Host "Conditions met. Proceeding with the pipeline."
-                }
-            displayName: 'Determine Deployment Environments'
-
-  - stage: BuildAndTest
-    dependsOn: Validation
-    condition: succeeded()
-    displayName: 'Build and Test Stage'
-    jobs:
-      - job: BuildAndTest
-        displayName: 'Build And Test Function App'
-        steps:
-          - checkout: self
-            persistCredentials: true
-
-          - task: PowerShell@2
-            inputs:
-              targetType: 'inline'
-              script: |
-                $buildNumber = $Env:BUILD_BUILDNUMBER
-                $revision = $buildNumber.Substring($buildNumber.LastIndexOf('.') + 1)
-                $branchName = '$(Build.SourceBranchName)'
-
-                if ($branchName -eq 'main') {
-                  Write-Host "##vso[build.updatebuildnumber]$(release-version).$revision"
-                }
-                elseif ($branchName -like 'hotfix*') {
-                  $version = $branchName
-                  Write-Host "##vso[build.updatebuildnumber]$version.$revision"
-                }
-                else {
-                  Write-Host "Not main or hotfix branch, build name not changed"
-                }
-            displayName: Set Release Version
-
-          # Use .NET SDK
           - task: UseDotNet@2
-            displayName: 'Install .NET Core SDK'
             inputs:
-              version: '$(DOTNET_VERSION)'
-              packageType: sdk
+              packageType: 'sdk'
+              version: '8.0.x'
+              installationPath: $(Agent.ToolsDirectory)/dotnet
 
-          # - task: SonarQubePrepare@7
-          #   condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
-          #   inputs:
-          #     SonarQube: '$(SONARQUBE_SERVICE_CONNECTION)'
-          #     scannerMode: '$(SONARQUBE_API_SCANNER_MODE)'
-          #     msBuildVersion: '$(SONARQUBE_MS_BUILD_VERSION)'
-          #     projectKey: '$(sonarQubeProjectKey)'
-          #     projectName: '$(projectName)'
-          #     extraProperties: |
-          #       sonar.cs.opencover.reportsPaths=$(Agent.TempDirectory)/**/coverage.opencover.xml
+          - task: NuGetToolInstaller@1
+
+          - task: NuGetCommand@2
+            inputs:
+              restoreSolution: '*.sln'
 
           - task: DotNetCoreCLI@2
-            displayName: Build
+            displayName: Build solution
             inputs:
               command: 'build'
-              projects: |
-                $(System.DefaultWorkingDirectory)/*.csproj
-              arguments: --output $(System.DefaultWorkingDirectory)/publish_output --configuration $(buildConfiguration)
+              projects: '*.csproj'
+              arguments: '--configuration $(buildConfiguration)'
 
-          # - task: SonarQubeAnalyze@7
-          #   condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
-          #   inputs:
-          #     jdkversion: 'JAVA_HOME_17_X64'
-
-          # - task: SonarQubePublish@7
-          #   condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
-          #   inputs:
-          #     pollingTimeoutSec: '300'
-
-          - task: ArchiveFiles@2
-            displayName: 'Archive files'
+          - task: DotNetCoreCLI@2
+            displayName: Publish project
             inputs:
-              rootFolderOrFile: '$(System.DefaultWorkingDirectory)/publish_output'
-              includeRootFolder: false
-              archiveType: zip
-              archiveFile: $(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip
-              replaceExistingArchive: true
+              command: 'publish'
+              publishWebProjects: false
+              projects: '*.csproj'
+              arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)'
+              zipAfterPublish: true
 
-          - publish: $(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip
-            artifact: drop
+          - task: PublishBuildArtifacts@1
+            displayName: Publish Artifact
+            inputs:
+              PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+              ArtifactName: 'drop'
+              publishLocation: 'Container'
 
-  - stage: 'DeployToDev'
-    displayName: 'Deploy to Dev'
-    dependsOn:
-      - BuildAndTest
-      - Validation
-    condition: and(succeeded('BuildAndTest'), eq(${{ parameters.HotFix }}, false))
-    variables:
-      - group: vg-por-pipeline-dev
-      - group: vg-por-web-sample-project-intranet-cms-dev
+  - stage: Deploy
+    dependsOn: Build
     jobs:
-      - deployment: DeployFunctionApp
-        displayName: 'Deploy Function App'
-        environment: 'POR_DEV'
-        pool:
-          vmImage: $(vmImageName)
+      - deployment: DeployToAppService
+        environment: 'production'
         strategy:
           runOnce:
             deploy:
               steps:
-                - template: '.pipeline/api.deploy.yml'
-                  parameters:
-                    subscription: '$(azureSubscription-dev)'
-                    appSettingsJson: >
-                      [
-                        {"name":"FUNCTIONS_EXTENSION_VERSION","value":"$(DOTNET_FUNCTIONS_ISOLATED_EXTENSION_VERSION)"},
-                        {"name":"FUNCTIONS_WORKER_RUNTIME","value":"$(DOTNET_FUNCTIONS_ISOLATED_WORKER_RUNTIME)"},
-                        {"name":"ASPNETCORE_ENVIRONMENT","value":"Production"},
-                        {"name":"WEBSITE_ENABLE_SYNC_UPDATE_SITE","value": "true"},
-                        {"name":"WEBSITE_RUN_FROM_PACKAGE","value": "1"},
-                        {"name":"WEBSITE_USE_PLACEHOLDER_DOTNETISOLATED","value": "1"}    
-                      ]
-                    apiName: '$(functionAppName)'
-                    apiResourceGroup: '$(apiResourceGroup)'
-                    appins: '$(appins)'
-                    appinsResourceGroup: '$(performanceMonitorResourceGroup)'
-                    storageAccountName: '$(storageAccountName)'
-                    storageAccountResourceGroup: '$(storageAccountResourceGroup)'          
+                - download: current
+                  artifact: drop
+
+                - task: AzureWebApp@1
+                  displayName: 'Deploy to Azure App Service'
+                  inputs:
+                    azureSubscription: '$(azureSubscription-dev)'
+                    appType: 'webApp'
+                    appName: 'DancingGoat'
+                    package: '$(Pipeline.Workspace)/drop/*.zip'
