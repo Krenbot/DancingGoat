@@ -11,12 +11,15 @@ namespace DancingGoat.PageTemplates
         [CheckBoxComponent(Label = "Display logo", Order = 1)]
         public bool ShowLogo { get; set; } = true;
 
-
         /// <summary>
         /// Background color CSS class of the header.
         /// </summary>
         [RequiredValidationRule]
-        [DropDownComponent(Label = "Background color of header", Order = 2, Options = "first-color;Chocolate\r\nsecond-color;Gold\r\nthird-color;Espresso")]
+        [DropDownComponent(
+            Label = "Background color of header",
+            Order = 2,
+            Options = "first-color;Chocolate\r\nsecond-color;Gold\r\nthird-color;Espresso"
+        )]
         public string HeaderColorCssClass { get; set; } = "first-color";
     }
 }

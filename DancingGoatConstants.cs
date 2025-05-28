@@ -10,18 +10,14 @@
         /// </summary>
         public const string CONSTRAINT_FOR_NON_ROUTER_PAGE_CONTROLLERS = "Account|Consent|SiteMap";
 
-
         public const string DEFAULT_ROUTE_NAME = "default";
 
-
-        public const string DEFAULT_ROUTE_WITHOUT_LANGUAGE_PREFIX_NAME = "defaultWithoutLanguagePrefix";
-
+        public const string DEFAULT_ROUTE_WITHOUT_LANGUAGE_PREFIX_NAME =
+            "defaultWithoutLanguagePrefix";
 
         public const string HOME_PAGE_PATH = "/Home";
 
-
         public const string WEBSITE_CHANNEL_NAME = "DancingGoatPages";
-
 
         public const string NAVIGATION_MENU_FOLDER_PATH = "/Navigation_menu";
     }

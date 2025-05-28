@@ -17,7 +17,8 @@
         public const string SECTION_25_75 = "DancingGoat.Section_25_75";
 
         // Page templates
-        public const string LANDING_PAGE_SINGLE_COLUMN_TEMPLATE = "DancingGoat.LandingPageSingleColumn";
+        public const string LANDING_PAGE_SINGLE_COLUMN_TEMPLATE =
+            "DancingGoat.LandingPageSingleColumn";
         public const string ARTICLE_TEMPLATE = "DancingGoat.Article";
         public const string ARTICLE_WITH_SIDEBAR_TEMPLATE = "DancingGoat.ArticleWithSidebar";
     }
